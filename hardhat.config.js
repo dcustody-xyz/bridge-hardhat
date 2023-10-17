@@ -1,6 +1,8 @@
 const { HardhatUserConfig, extendEnvironment } = require("hardhat/config");
 const { createProvider } = require("hardhat/internal/core/providers/construction");
+const fs = require('fs')
 
+require('@nomicfoundation/hardhat-chai-matchers')
 require("@nomicfoundation/hardhat-ethers");
 require("@nomicfoundation/hardhat-verify");
 
@@ -83,10 +85,10 @@ const hardhatNetwork = () => {
       return {
         network_id:    11155111,
         chainId:       11155111,
-        accounts: [ {privateKey: process.env.PRIVATE_KEY, balance: 10e18.toString()} ], // testnet private key
+        // accounts: [ {privateKey: process.env.PRIVATE_KEY, balance: 10e18.toString()} ], // testnet private key
         forking: {
           url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_SEPOLIA_API_KEY}`,
-          blockNumber: 4483780,
+          blockNumber: 4503700,
           // accounts: [process.env.PRIVATE_KEY], // testnet private key
         }
       }
@@ -125,7 +127,8 @@ const config = {
       url: "https://polygon-mumbai-bor.publicnode.com",
       accounts: [process.env.PRIVATE_KEY], // testnet private key
     }
-  }
+  },
+  mocha: JSON.parse(fs.readFileSync('.mocharc.json'))
 };
 
 module.exports = config;

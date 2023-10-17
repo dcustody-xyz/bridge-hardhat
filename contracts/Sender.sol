@@ -104,6 +104,7 @@ contract Sender is CCIPBase {
 
         // Charge the sender
         linkToken.safeTransferFrom(msg.sender, address(this), fees);
+        IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
         // approve the Router to transfer LINK tokens on contract's behalf. It will spend the fees in LINK
         linkToken.safeApprove(address(router), fees);
