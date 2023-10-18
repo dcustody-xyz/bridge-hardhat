@@ -15,6 +15,13 @@ extendEnvironment(async (hre) => {
   }
 })
 
+const accounts = (fork) => {
+  if (!fork && process.env.PRIVATE_KEY)
+    return [{privateKey: process.env.PRIVATE_KEY, balance: 10e18.toString()}]
+  else
+    return []
+}
+
 const hardhatNetwork = () => {
   switch (+process.env.HARDHAT_INTEGRATION_CHAIN) {
     case 1:
@@ -81,15 +88,14 @@ const hardhatNetwork = () => {
           blockNumber:   20761905
         }
       }
-    case 11155111:
+    case 11155111: // Sepolia
       return {
         network_id:    11155111,
         chainId:       11155111,
-        // accounts: [ {privateKey: process.env.PRIVATE_KEY, balance: 10e18.toString()} ], // testnet private key
+        accounts: accounts(true),
         forking: {
           url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_SEPOLIA_API_KEY}`,
           blockNumber: 4503700,
-          // accounts: [process.env.PRIVATE_KEY], // testnet private key
         }
       }
 
@@ -120,12 +126,12 @@ const config = {
     sepolia: {
       url: "https://ethereum-sepolia.publicnode.com",
       // url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_SEPOLIA_API_KEY}`,
-      accounts: [process.env.PRIVATE_KEY], // testnet private key
+      accounts: accounts(),
 
     },
     mumbai: {
       url: "https://polygon-mumbai-bor.publicnode.com",
-      accounts: [process.env.PRIVATE_KEY], // testnet private key
+      accounts: accounts(),
     }
   },
   mocha: JSON.parse(fs.readFileSync('.mocharc.json'))
