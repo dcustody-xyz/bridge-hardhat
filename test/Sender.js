@@ -4,8 +4,12 @@ const { anyValue } = require('@nomicfoundation/hardhat-chai-matchers/withArgs')
 
 
 describe("Sender", function () {
+  before(function() {
+    if (hre.network.config.chainId != 11155111) this.skip()
+  })
+
   it("Should check fee for message and send message", async function () {
-    polygonSelector = 12532609583862916517n
+    mumbaiSelector = 12532609583862916517n
     payload = '0x0000000000000000000000001cc86b9b67c93b8fa411554db761f68979e7995a000000000000000000000000f1e3a5842eeef51f2967b3f05d45dd4f4205ff4000000000000000000000000000000000000000000000000000000000000003e8'
 
     // CCIP-BnM holder
@@ -17,40 +21,35 @@ describe("Sender", function () {
     link = await hre.ethers.getContractAt('IERC20', '0x779877A7B0D9E8603169DdbD7836e478b4624789', owner)
     ccip = await hre.ethers.getContractAt('IERC20', '0xFd57b4ddBf88a4e07fF4e34C487b99af2Fe82a05', owner)
 
-    console.log('Sender.js:18');
     factory = await hre.ethers.getContractFactory('Sender', deployer)
-    console.log('Sender.js:20');
     sender = await factory.deploy('0xD0daae2231E9CB96b94C8512223533293C3693Bf', link.target)
-    console.log('Sender.js:22');
 
     await helpers.mine(1)
     await sender.waitForDeployment()
 
-    await sender.whitelistDestination(polygonSelector, sender.target) // allow same address just to test
-    console.log('Sender.js:28');
+    await sender.whitelistDestination(mumbaiSelector, sender.target || sender.address) // allow same address just to test
 
     await link.approve(sender.target, 1e18.toString())
     await ccip.approve(sender.target, 1e18.toString())
 
-    console.log('Sender.js:33');
     const originalGasLimit = await sender.fixedGasLimit()
 
-    const fee = await sender.feeFor(
-      polygonSelector,
+    // 4503704
+    fee = await sender.feeFor(
+      mumbaiSelector,
       sender.target,
       payload,
       ccip.target,
       1000,
-      '0xFd57b4ddBf88a4e07fF4e34C487b99af2Fe82a05'
+      link.target
     )
 
-    console.log('Sender.js:45');
     expect(fee).to.be.greaterThan(0.07e18.toString()) // ~0.5$ gasFee
 
     await sender.setFixedGasLimit(1)
 
     const feeWithGasLimit = await sender.feeFor(
-      polygonSelector,
+      mumbaiSelector,
       sender.target,
       payload,
       ccip.target,
@@ -66,7 +65,7 @@ describe("Sender", function () {
     const ccipBal = await ccip.balanceOf(owner.address)
 
     await expect(sender.connect(owner).sendMessagePayLINK(
-      polygonSelector,
+      mumbaiSelector,
       sender.target,
       payload,
       ccip.target,
@@ -75,7 +74,7 @@ describe("Sender", function () {
       sender, 'MessageSent'
     ).withArgs(
       anyValue,
-      polygonSelector,
+      mumbaiSelector,
       sender.target,
       payload,
       ccip.target,

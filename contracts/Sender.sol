@@ -2,7 +2,6 @@
 pragma solidity 0.8.19;
 
 import "./CCIPBase.sol";
-import "hardhat/console.sol";
 
 contract Sender is CCIPBase {
     using SafeERC20 for IERC20;
@@ -288,12 +287,6 @@ contract Sender is CCIPBase {
         uint256 _amount,
         address _paymentToken
     ) public view returns (uint) {
-        console.log('Sender.sol:289', _chainSelector, _receiver);
-        console.logBytes(_payload);
-
-        console.log('Sender.sol:293', _token, _amount);
-        console.log('Sender.sol:293', _paymentToken);
-        console.log('Sender.sol:295');
         Client.EVM2AnyMessage memory evm2AnyMessage = _buildCCIPMessage(
             _receiver,
             _payload,
@@ -302,16 +295,11 @@ contract Sender is CCIPBase {
             _paymentToken
         );
 
-        console.log('Sender.sol:298', whitelistedDestination[_chainSelector][_receiver]);
         // Initialize a router client instance to interact with cross-chain router
         IRouterClient router = IRouterClient(this.getRouter());
-        console.log('Sender.sol:301', _chainSelector);
 
         // Get the fee required to send the CCIP message
-        uint r =  router.getFee(_chainSelector, evm2AnyMessage);
-
-        console.log('Sender.sol:307');
-        return r;
+        return router.getFee(_chainSelector, evm2AnyMessage);
     }
 
     /// @dev Change the fixedGastLimit value for the router fee

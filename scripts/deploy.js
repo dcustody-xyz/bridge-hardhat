@@ -7,17 +7,17 @@
 const hre = require("hardhat");
 
 async function main() {
-  factory = await hre.ethers.getContractFactory('ProgrammableTokenTransfers')
+  factory = await hre.ethers.getContractFactory('Sender')
   // 0xD84BAF72cF770Fb2707f12462B30feeca41Ee062
   sender = await factory.deploy('0xD0daae2231E9CB96b94C8512223533293C3693Bf', '0x779877A7B0D9E8603169DdbD7836e478b4624789')
-  await sender.whitelistDestinationChain(12532609583862916517n)
+  await sender.whitelistDestination(12532609583862916517n, "0x8F7a45eBDe059392E46A46DCc14AB24681A961Ea")
 
   await hre.run('verify:verify', { address: signer.target, contract: `ProgrammableTokenTransfers`, constructorArguments: ['0xD0daae2231E9CB96b94C8512223533293C3693Bf', '0x779877A7B0D9E8603169DdbD7836e478b4624789'] })
 
   link = await ethers.getContractAt('IERC20', '0x779877A7B0D9E8603169DdbD7836e478b4624789')
   ccip = await ethers.getContractAt('IERC20', '0xFd57b4ddBf88a4e07fF4e34C487b99af2Fe82a05')
-  await link.transfer(sender.target, 0.09e18.toString())
-  await ccip.transfer(sender.target, 0.01e18.toString())
+  await link.approve(sender.target, 9e18.toString())
+  await ccip.approve(sender.target, 1e18.toString())
 
   await changeNetwork('mumbai')
 
@@ -27,11 +27,14 @@ async function main() {
   await receiver.whitelistSourceChain(16015286601757825753n)
   await receiver.whitelistSender(sender.target)
 
+  // founder, DAI (aave)
+  abiDecoder = new ethers.AbiCoder
+  payload = abiDecoder.encode(['address', 'address', 'uint', 'bytes'], ['0x1cC86b9b67C93B8Fa411554DB761f68979E7995A', '0xc8c0Cf9436F4862a8F60Ce680Ca5a9f0f99b5ded', '1', paraswap])
 
   await sender.sendMessagePayLINK(
     12532609583862916517n,
-    sender.target,
-'0x0000000000000000000000001cc86b9b67c93b8fa411554db761f68979e7995a000000000000000000000000f1e3a5842eeef51f2967b3f05d45dd4f4205ff4000000000000000000000000000000000000000000000000000000000000003e8',
+    '0x8F7a45eBDe059392E46A46DCc14AB24681A961Ea',
+    payload,
     '0xFd57b4ddBf88a4e07fF4e34C487b99af2Fe82a05',
     1000
   )

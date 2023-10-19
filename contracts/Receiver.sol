@@ -2,25 +2,30 @@
 pragma solidity 0.8.19;
 
 import "./CCIPBase.sol";
+import "hardhat/console.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @title - A simple messenger contract for transferring/receiving tokens and data across chains.
 contract Receiver is CCIPBase {
     using SafeERC20 for IERC20;
+
     // Custom errors to provide more descriptive revert messages.
+    error SwapperFailed();
+    error LessThanExpected(uint _expected, uint _current);
     error NothingToWithdraw(); // Used when trying to withdraw Ether but there's nothing to withdraw.
     error FailedToWithdraw(address owner, uint256 value); // Used when the withdrawal of Ether fails.
-    error SourceChainNotWhitelisted(uint64 sourceChainSelector); // Used when the source chain has not been whitelisted by the contract owner.
-    error SenderNotWhitelisted(address sender); // Used when the sender has not been whitelisted by the contract owner.
+    error SourceNotWhitelisted(uint64 chainSelector, address sender); // Used when the source chain has not been whitelisted by the contract owner.
 
     // Event emitted when a message is received from another chain.
     event MessageReceived(
         bytes32 indexed messageId, // The unique ID of the CCIP message.
-        uint64 indexed sourceChainSelector, // The chain selector of the source chain.
+        uint64 indexed chainSelector, // The chain selector of the source chain.
         address sender, // The address of the sender from the source chain.
         address dest,
         address token, // The token address that was transferred.
         uint256 tokenAmount // The token amount that was transferred.
     );
+    event SwapperChanged(address _oldSwapper, address _oldSwapperApprover, address _newSwapper, address _newSwapperApprover);
 
     bytes32 private lastReceivedMessageId; // Store the last received messageId.
     address private lastReceivedTokenAddress; // Store the last received token address.
@@ -28,58 +33,33 @@ contract Receiver is CCIPBase {
     bytes private lastReceivedData; // Store the last received data.
 
     // Mapping to keep track of whitelisted source chains.
-    mapping(uint64 => bool) public whitelistedSourceChains;
+    mapping(uint64 => mapping(address => bool)) public whitelistedSources;
 
-    // Mapping to keep track of whitelisted senders.
-    mapping(address => bool) public whitelistedSenders;
+    address public swapper;
+    address public swapperApprover;
 
     constructor(address _router, address _link) CCIPBase(_router, _link) { }
 
-    /// @dev Modifier that checks if the chain with the given sourceChainSelector is whitelisted.
-    /// @param _sourceChainSelector The selector of the destination chain.
-    modifier onlyWhitelistedSourceChain(uint64 _sourceChainSelector) {
-        if (!whitelistedSourceChains[_sourceChainSelector])
-            revert SourceChainNotWhitelisted(_sourceChainSelector);
-        _;
-    }
-
-    /// @dev Modifier that checks if the chain with the given sourceChainSelector is whitelisted.
-    /// @param _sender The address of the sender.
-    modifier onlyWhitelistedSenders(address _sender) {
-        if (!whitelistedSenders[_sender]) revert SenderNotWhitelisted(_sender);
+    /// @dev Modifier that checks if the chain with the given chainSelector is whitelisted.
+    /// @param _chainSelector The selector of the destination chain.
+    modifier onlyWhitelisted(uint64 _chainSelector, address _sender) {
+        if (!whitelistedSources[_chainSelector][_sender])
+            revert SourceNotWhitelisted(_chainSelector, _sender);
         _;
     }
 
     /// @dev Whitelists a chain for transactions.
     /// @notice This function can only be called by the owner.
-    /// @param _sourceChainSelector The selector of the source chain to be whitelisted.
-    function whitelistSourceChain(
-        uint64 _sourceChainSelector
-    ) external onlyOwner {
-        whitelistedSourceChains[_sourceChainSelector] = true;
+    /// @param _chainSelector The selector of the source chain to be whitelisted.
+    function whitelistSource(uint64 _chainSelector, address _sender) external onlyOwner {
+        whitelistedSources[_chainSelector][_sender] = true;
     }
 
     /// @dev Denylists a chain for transactions.
     /// @notice This function can only be called by the owner.
-    /// @param _sourceChainSelector The selector of the source chain to be denylisted.
-    function denylistSourceChain(
-        uint64 _sourceChainSelector
-    ) external onlyOwner {
-        whitelistedSourceChains[_sourceChainSelector] = false;
-    }
-
-    /// @dev Whitelists a sender.
-    /// @notice This function can only be called by the owner.
-    /// @param _sender The address of the sender.
-    function whitelistSender(address _sender) external onlyOwner {
-        whitelistedSenders[_sender] = true;
-    }
-
-    /// @dev Denylists a sender.
-    /// @notice This function can only be called by the owner.
-    /// @param _sender The address of the sender.
-    function denySender(address _sender) external onlyOwner {
-        whitelistedSenders[_sender] = false;
+    /// @param _chainSelector The selector of the source chain to be denylisted.
+    function denylistSource(uint64 _chainSelector, address _sender) external onlyOwner {
+        whitelistedSources[_chainSelector][_sender] = false;
     }
 
     /**
@@ -108,10 +88,6 @@ contract Receiver is CCIPBase {
         );
     }
 
-    address public swapper;
-    address public swapperApprover;
-    event SwapperChanged(address _oldSwapper, address _oldSwapperApprover, address _newSwapper, address _newSwapperApprover);
-
     function setSwapper(address _swapper, address _swapperApprover) external onlyOwner {
         emit SwapperChanged(swapper, swapperApprover,  _swapper, _swapperApprover);
 
@@ -119,38 +95,36 @@ contract Receiver is CCIPBase {
         swapperApprover = _swapperApprover;
     }
 
-    error LessThanExpected(uint _expected, uint _current);
-
     /// handle a received message
     function _ccipReceive(
         Client.Any2EVMMessage memory any2EvmMessage
     )
         internal
         override
-        onlyWhitelistedSourceChain(any2EvmMessage.sourceChainSelector) // Make sure source chain is whitelisted
-        onlyWhitelistedSenders(abi.decode(any2EvmMessage.sender, (address))) // Make sure the sender is whitelisted
+        onlyWhitelisted(any2EvmMessage.sourceChainSelector, abi.decode(any2EvmMessage.sender, (address)))
     {
         lastReceivedMessageId = any2EvmMessage.messageId; // fetch the messageId
         (
             address dest, address destToken, uint destMinAmount, bytes memory _swapperData
         ) = abi.decode(any2EvmMessage.data, (address, address, uint, bytes)); // abi-decoding of the sent data
-        // address srcToken = any2EvmMessage.destTokenAmounts[0].token;
-        // uint srcAmount = any2EvmMessage.destTokenAmounts[0].amount;
 
         IERC20 _expToken = IERC20(destToken);
         uint _bal = _expToken.balanceOf(address(this));
 
-        // Can be own swapper or paraswap or any other
-        IERC20(any2EvmMessage.destTokenAmounts[0].token).safeApprove(
-            swapperApprover, any2EvmMessage.destTokenAmounts[0].amount
-        );
-        swapper.call(_swapperData);
+        if (_swapperData.length > 0) {
+            // Can be own swapper or paraswap or any other
+            IERC20(any2EvmMessage.destTokenAmounts[0].token).safeApprove(
+                swapperApprover, any2EvmMessage.destTokenAmounts[0].amount
+            );
+            (bool success, ) = swapper.call(_swapperData);
+
+            if (!success) revert SwapperFailed();
+        }
 
         uint diff = _expToken.balanceOf(address(this)) - _bal;
 
         if (diff < destMinAmount) { revert LessThanExpected(destMinAmount, diff); }
 
-        // charge fees?
         _expToken.safeTransfer(dest, diff);
 
         emit MessageReceived(

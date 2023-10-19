@@ -5,6 +5,8 @@ const fs = require('fs')
 require('@nomicfoundation/hardhat-chai-matchers')
 require("@nomicfoundation/hardhat-ethers");
 require("@nomicfoundation/hardhat-verify");
+const tdly = require("@tenderly/hardhat-tenderly");
+tdly.setup();
 
 extendEnvironment(async (hre) => {
   hre.changeNetwork = async function changeNetwork(newNetwork) {
@@ -17,38 +19,38 @@ extendEnvironment(async (hre) => {
 
 const accounts = (fork) => {
   if (!fork && process.env.PRIVATE_KEY)
-    return [{privateKey: process.env.PRIVATE_KEY, balance: 10e18.toString()}]
+    return [process.env.PRIVATE_KEY]
   else
     return []
 }
 
 const hardhatNetwork = () => {
-  switch (+process.env.HARDHAT_INTEGRATION_CHAIN) {
+  chain = process.env.HARDHAT_INTEGRATION_CHAIN
+  chain = isNaN(chain) ? chain?.toLowerCase() : +chain
+
+  switch (chain) {
     case 1:
       return {
-        network_id:    1,
         chainId:       1,
         gasMultiplier: 5,
         forking:       {
-          url:           `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_MAINNET_API_KEY}`,
+          url:           `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_MAINNET_KEY}`,
           gasMultiplier: 5,
           blockNumber:   14980909
         }
       }
     case 10:
       return {
-        network_id:    10,
         chainId:       10,
         gasMultiplier: 5,
         forking:       {
-          url:           `https://opt-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_OPTIMISM_API_KEY}`,
+          url:           `https://opt-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_OPTIMISM_KEY}`,
           gasMultiplier: 5,
           blockNumber:   (+process.env.BLOCK || 22562704)
         }
       }
     case 56:
       return {
-        network_id:    56,
         chainId:       56,
         gasMultiplier: 5,
         forking:       {
@@ -66,41 +68,38 @@ const hardhatNetwork = () => {
             }
           }
         },
-        network_id:    137,
         chainId:       137,
         gasMultiplier: 10,
         forking:       {
-          url:           `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
+          url:           `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_POLYGON_KEY}`,
           gasMultiplier: 10,
           blockNumber:   (+process.env.BLOCK || 19880876)
           // blockNumber:   28401104
           // blockNumber:    24479611 // test for balancer
         }
       }
-    case 80001:
+    case 80001, 'mumbai':
       return {
-        network_id:    80001,
         chainId:       80001,
         gasMultiplier: 5,
         forking:       {
           url:           `https://polygon-mumbai.g.alchemy.com/v2/${process.env.ALCHEMY_MUMBAI_KEY}`,
           gasMultiplier: 5,
-          blockNumber:   20761905
+          blockNumber:   +process.env.BLOCK_NUMBER || 41300000
         }
       }
-    case 11155111: // Sepolia
+    case 11155111, 'sepolia':
       return {
-        network_id:    11155111,
         chainId:       11155111,
         accounts: accounts(true),
         forking: {
-          url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_SEPOLIA_API_KEY}`,
+          url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_SEPOLIA_KEY}`,
           blockNumber: 4503700,
         }
       }
 
     default:
-      return { hardfork: 'berlin', network_id: 31337 }
+      return { hardfork: 'berlin', chainId: 31337 }
   }
 }
 
@@ -123,9 +122,12 @@ const config = {
   },
   networks: {
     hardhat: hardhatNetwork(),
+    tenderly: {
+      chainId: 80001,
+      url: "https://rpc.tenderly.co/fork/81d06c41-307a-4a55-a9cf-b0587eb06e96" // mumbai
+    },
     sepolia: {
       url: "https://ethereum-sepolia.publicnode.com",
-      // url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_SEPOLIA_API_KEY}`,
       accounts: accounts(),
 
     },
@@ -134,7 +136,12 @@ const config = {
       accounts: accounts(),
     }
   },
-  mocha: JSON.parse(fs.readFileSync('.mocharc.json'))
+  mocha: JSON.parse(fs.readFileSync('.mocharc.json')),
+  tenderly: { // as before
+    username: "Shelvak",
+    project: "Project",
+    privateVerification: false
+  }
 };
 
 module.exports = config;
