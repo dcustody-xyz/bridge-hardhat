@@ -5,8 +5,8 @@ const fs = require('fs')
 require('@nomicfoundation/hardhat-chai-matchers')
 require("@nomicfoundation/hardhat-ethers");
 require("@nomicfoundation/hardhat-verify");
-const tdly = require("@tenderly/hardhat-tenderly");
-tdly.setup();
+// const tdly = require("@tenderly/hardhat-tenderly");
+// tdly.setup();
 
 extendEnvironment(async (hre) => {
   hre.changeNetwork = async function changeNetwork(newNetwork) {

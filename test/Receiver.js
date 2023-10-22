@@ -7,14 +7,25 @@ const { tenderly } = require("hardhat");
 
 
 describe("Receiver", function () {
-  before(function() {
-    // if (hre.network.config.chainId != 80001) this.skip()
+  before(async function() {
+    if (hre.network.config.chainId != 80001) this.skip()
+
+    await network.provider.request({
+      method: 'hardhat_reset',
+      params: [
+        {
+          forking: {
+            jsonRpcUrl:  hre.network.config.forking.url,
+            blockNumber: 41365593
+          },
+        },
+      ],
+    });
   })
 
   it("Should check fee for message and send message", async function () {
     // BLOCKNUMBER 41365593
     sepoliaSelector = 16015286601757825753n
-    // payload = '0x0000000000000000000000001cc86b9b67c93b8fa411554db761f68979e7995a000000000000000000000000f1e3a5842eeef51f2967b3f05d45dd4f4205ff4000000000000000000000000000000000000000000000000000000000000003e8'
 
     // CCIP-BnM holder
     deployer = await ethers.getImpersonatedSigner('0x1111111111111111111111111111111111111111') // Chainlink caller
@@ -32,21 +43,15 @@ describe("Receiver", function () {
     swapper = await factoryS.deploy()
 
     await helpers.mine(1)
-    // await receiver.waitForDeployment()
-    // await swapper.waitForDeployment()
+    await receiver.waitForDeployment()
+    await swapper.waitForDeployment()
     expect(receiver.target || receiver.address).to.be.equal("0x8F7a45eBDe059392E46A46DCc14AB24681A961Ea")
 
     await receiver.whitelistSource(sepoliaSelector, '0xd895ea725e460785290f460ca9302b23ca548843')
     await receiver.setSwapper(swapper.target || swapper.address, swapper.target || swapper.address)
 
-    // receiverAddr = receiver.target || receiver.address.substring(2)
-
-    // offRampAbi = JSON.parse(fs.readFileSync('./node_modules/@chainlink/contracts-ccip/abi/v0.8/EVM2EVMOffRamp.json'))
-    // evmOffRamp = await ethers.getContractAt(
-    //   offRampAbi,
 
     const recBal = await ccip.balanceOf(receiver.target || receiver.address)
-
     const aaveDai = await ethers.getContractAt('@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20', '0xc8c0Cf9436F4862a8F60Ce680Ca5a9f0f99b5ded');
 
     await swapper.setSwap(
@@ -64,7 +69,7 @@ describe("Receiver", function () {
 
     tx = await chainlinkBridge.sendTransaction({
       to: '0xBe582Db704Bd387222C70CA2E5A027E5E2c06fB7',
-      data: fs.readFileSync('./payload').toString().trim(),
+      data: fs.readFileSync('./utils/80001.0xBe582Db704Bd387222C70CA2E5A027E5E2c06fB7.payload').toString().trim(),
       nonce: 12390,
       gasLimit: 4e6
     })

@@ -4,8 +4,20 @@ const { anyValue } = require('@nomicfoundation/hardhat-chai-matchers/withArgs')
 
 
 describe("Sender", function () {
-  before(function() {
+  before(async function() {
     if (hre.network.config.chainId != 11155111) this.skip()
+
+    await network.provider.request({
+      method: 'hardhat_reset',
+      params: [
+        {
+          forking: {
+            jsonRpcUrl:  hre.network.config.forking.url,
+            blockNumber: 4503700
+          },
+        },
+      ],
+    });
   })
 
   it("Should check fee for message and send message", async function () {
@@ -18,8 +30,8 @@ describe("Sender", function () {
     await helpers.setBalance(deployer.address, 100n ** 18n);
     await helpers.setBalance(owner.address, 100n ** 18n);
 
-    link = await hre.ethers.getContractAt('IERC20', '0x779877A7B0D9E8603169DdbD7836e478b4624789', owner)
-    ccip = await hre.ethers.getContractAt('IERC20', '0xFd57b4ddBf88a4e07fF4e34C487b99af2Fe82a05', owner)
+    link = await hre.ethers.getContractAt('@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20', '0x779877A7B0D9E8603169DdbD7836e478b4624789', owner)
+    ccip = await hre.ethers.getContractAt('@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20', '0xFd57b4ddBf88a4e07fF4e34C487b99af2Fe82a05', owner)
 
     factory = await hre.ethers.getContractFactory('Sender', deployer)
     sender = await factory.deploy('0xD0daae2231E9CB96b94C8512223533293C3693Bf', link.target)
